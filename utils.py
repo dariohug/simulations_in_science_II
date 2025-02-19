@@ -36,6 +36,9 @@ class Cell:
 
     def split_cell(self, dimension_x, max_particles = 8):
 
+        if len(self.particles) <= max_particles:
+            return
+
         # Splitting in X direction
         if dimension_x:
             # Find middle of cell in x-Dimension
