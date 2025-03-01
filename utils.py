@@ -10,6 +10,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from heapq import *
+
 
 class Particle:
     def __init__(self, pos_x, pos_y):
@@ -75,24 +77,73 @@ class Cell:
             if len(child.particles) >= max_particles:
                 child.split_cell( not dimension_x, max_particles)
 
-def plot_cells(ax, cell):
 
-    # Draw the cell boundary
-    rect = plt.Rectangle(
-        (cell.pos_bl_x, cell.pos_bl_y),  # Bottom-left corner
-        cell.pos_tr_x - cell.pos_bl_x,   # Width
-        cell.pos_tr_y - cell.pos_bl_y,   # Height
-        edgecolor='black',
-        linewidth=1,
-        fill=False
-    )
-    ax.add_patch(rect)
 
-    # Plot particles as red dots
-    for particle in cell.particles:
-        x, y = particle.get_pos()
-        ax.plot(x, y, 'ro', markersize=3)
+"""         ---               week 02                   ---     """
 
-    # Recursively plot children
-    for sub_cell in cell.children:
-        plot_cells(ax, sub_cell)
+
+# Priority queue
+# Min heap structure -> smalles elmt is always at root
+class prioq:
+    def __init__(self, k):
+        self.heap = []
+        sentinel = (-np.inf, None, np.array([0.0,0.0]))
+        for i in range(k):
+            heappush(self.heap, sentinel)
+
+    def replace(self, dist2, particle, dr):
+        """Heapraplce() automatically restrucures heap after an elmt is pushed
+        Function therefore ensures that smalles elmt is at root"""
+        heapreplace(self.heap, (dist2, particle, dr))
+    
+    def key(self):
+        """Distance is negative, so prioq has stores the 
+        "farthest" distance at heap[0] since it is the most negative"""
+        return self.heap[0][0]
+
+def celldist2(cell: Cell, r):
+    """Calculates the squared minimum distance between a particle
+    position and this node."""
+    r = np.array(r)
+
+    # Define high and low boundaries of the cell
+    r_high = np.array([cell.pos_tr_x, cell.pos_tr_y])  # Top-right corner
+    r_low = np.array([cell.pos_bl_x, cell.pos_bl_y])   # Bottom-left corner
+
+    # Compute minimum distance in each dimension
+    d1 = r - r_high
+    d2 = r_low - r
+
+    # Ensure distances are positive (outside the box) or zero (inside the box)
+    d1 = np.maximum(d1, d2)
+    d1 = np.maximum(d1, np.zeros_like(d1))
+
+    # Return squared distance
+    return np.dot(d1, d1)
+
+
+def neighbor_search_periodic(pq, root, r, period):
+    # walk the closest image first (at offset=[0, 0])
+    for y in [0.0, -period[1], period[1]]:
+        for x in [0.0, -period[0], period[0]]:
+            rOffset = np.array([x, y])
+            neighbor_search(pq, root, r, rOffset)
+
+def neighbor_search(pq: prioq, root:Cell, r, rOffset):
+    """ Recursively checking cell and children cells to fill up prioq"""
+    if not root.children:
+        for particle in root.particles:
+            pos_x, pos_y = particle.get_pos()
+            dr_x = (pos_x + rOffset[0]) - r[0]
+            dr_y = (pos_y + rOffset[1]) - r[1]
+            distance = -(dr_x**2 + dr_y**2) #negativee to ensure prioq behaviour
+
+            if distance > pq.key():
+                pq.replace(distance, particle, (dr_x, dr_y))
+    
+    else:
+        for child in root.children:
+            if -celldist2(child, r- rOffset) > pq.key():
+                neighbor_search(pq, child, r, rOffset)
+
+
