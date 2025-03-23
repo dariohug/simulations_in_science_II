@@ -14,12 +14,33 @@ from heapq import *
 
 
 class Particle:
-    def __init__(self, pos_x, pos_y):
+    def __init__(self, pos_x, pos_y, mass = 1):
         self.pos_x = pos_x
         self.pos_y = pos_y
+        self.mass = mass
+        self.dens = 0
+        self.energy = 1
+        self.vel_x = 0
+        self.vel_y = 0
+        self.acc_x = 0
+        self.acc_y = 0
 
     def get_pos(self):
         return (self.pos_x, self.pos_y)
+    
+    def get_vel(self):
+        return (self.vel_x, self.vel_y)
+
+    def set_vel(self, vel_x, vel_y):
+        self.vel_x = vel_x
+        self.vel_y = vel_y
+
+    def get_acc(self):
+        return (self.acc_x, self.acc_y)
+
+    def set_acc(self, acc_x, acc_y):
+        self.acc_x = acc_x
+        self.acc_y = acc_y
 
 class Cell:
     def __init__(self, pos_bl_x, pos_bl_y, pos_tr_x, pos_tr_y,particles = None):
@@ -106,20 +127,16 @@ def celldist2(cell: Cell, r):
     position and this node."""
     r = np.array(r)
 
-    # Define high and low boundaries of the cell
     r_high = np.array([cell.pos_tr_x, cell.pos_tr_y])  # Top-right corner
     r_low = np.array([cell.pos_bl_x, cell.pos_bl_y])   # Bottom-left corner
 
-    # Compute minimum distance in each dimension
     d1 = r - r_high
     d2 = r_low - r
 
-    # Ensure distances are positive (outside the box) or zero (inside the box)
     d1 = np.maximum(d1, d2)
     d1 = np.maximum(d1, np.zeros_like(d1))
 
-    # Return squared distance
-    return np.dot(d1, d1)
+    return float(np.dot(d1, d1))
 
 
 def neighbor_search_periodic(pq, root, r, period):
@@ -146,4 +163,123 @@ def neighbor_search(pq: prioq, root:Cell, r, rOffset):
             if -celldist2(child, r- rOffset) > pq.key():
                 neighbor_search(pq, child, r, rOffset)
 
+
+"""         ---               week 03                   ---     """
+
+
+def top_hat_kernel(distance, radius):
+    if np.linalg.norm(distance) <= radius:
+        return 1.0
+    else:
+        return 0.0
+
+def monaghan_kernel(distance, radius):
+    distance_norm = np.linalg.norm(distance) if isinstance(distance, (list, np.ndarray)) else distance
+    radius = float(radius)
+    rel_dist = distance_norm / radius
+    if rel_dist <= 1:
+        kernel_value = (2/3) * (1 - 1.5 * rel_dist**2 + 0.75 * rel_dist**3)
+        return kernel_value
+    elif rel_dist <= 2:
+        kernel_value = (2/3) * 0.25 * (2 - rel_dist)**3
+        return kernel_value
+    else:
+        return 0.0
+
+def calculate_density(particles, root, radius, kernel_func, period):
+    for particle in particles:
+        pq = prioq(32)
+        particle_pos = np.array(particle.get_pos())
+        neighbor_search_periodic(pq, root, particle_pos, period)
+        density = 0.0
+        for _, neighbor, distance in pq.heap:
+            if neighbor is not None:
+                distance_norm = np.linalg.norm(distance)  # Convert to scalar
+                kernel_value = kernel_func(distance_norm, radius)
+                if kernel_value > 0:  # Only add if kernel is non-zero
+                    density += neighbor.mass * kernel_value
+        particle.dens = density
+
+
+"""         ---               week 04                   ---     """
+
+def calculate_sound_speed(particle, gamma=7):
+    return np.sqrt(gamma * (gamma - 1) * particle.energy)
+
+def calculate_pressure(particle, gamma=7):
+    return (gamma - 1) * particle.dens * particle.energy
+
+def calculate_acceleration(particles, root, radius, kernel_func, period, gamma=7):
+    for particle in particles:
+        pq = prioq(32)
+        particle_pos = np.array(particle.get_pos())
+        neighbor_search_periodic(pq, root, particle_pos, period)
+        acc_x, acc_y = 0.0, 0.0
+
+        for _, neighbor, distance in pq.heap:
+            if neighbor is not None:
+                pressure_i = calculate_pressure(particle, gamma)
+                pressure_j = calculate_pressure(neighbor, gamma)
+
+                print(f"{pressure_i} and {pressure_j}")
+                
+                # Ensure distance is a scalar
+                distance_norm = np.linalg.norm(distance)
+                if distance_norm == 0:
+                    distance_norm = 1e-9  # Avoid division by zero
+                
+                # Get the kernel value based on the normalized distance
+                kernel_value = kernel_func(distance_norm, radius)
+
+                if particle.dens > 0 and neighbor.dens > 0:  # Avoid division by zero in pressure terms
+                    pressure_term = (pressure_i / (particle.dens**2)) + (pressure_j / (neighbor.dens**2))
+
+                    # Calculate the force direction
+                    force_x = -neighbor.mass * pressure_term * kernel_value * (distance[0] / distance_norm)
+                    force_y = -neighbor.mass * pressure_term * kernel_value * (distance[1] / distance_norm)
+
+                    acc_x += force_x
+                    acc_y += force_y
+
+                    # print(f"neighbor_mass: {neighbor.mass}, preassure_term: {pressure_term}, kernel_value: {kernel_value}, distanec : {distance[0], distance[1]}")
+
+        # Update the particle's acceleration
+        particle.set_acc(acc_x, acc_y)
+
+
+def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
+    # Drift 1 (dt/2)
+    for particle in particles:
+        vel_x, vel_y = particle.get_vel()
+        particle.pos_x += 0.5 * dt * vel_x
+        particle.pos_y += 0.5 * dt * vel_y
+
+        particle.pos_x %= period[0]
+        particle.pos_y %= period[1]
+
+    # Calculate forces
+    calculate_density(particles, root, radius, kernel_func, period)
+    calculate_acceleration(particles, root, radius, kernel_func, period, gamma)
+
+    # Kick (dt)
+    for particle in particles:
+        vel_x, vel_y = particle.get_vel()
+        acc_x, acc_y = particle.get_acc()
+        particle.set_vel(vel_x + dt * acc_x, vel_y + dt * acc_y)
+
+    # Drift 2 (dt/2)
+    for particle in particles:
+        pos_x, pos_y = particle.get_pos()
+        vel_x, vel_y = particle.get_vel()
+        particle.pos_x = pos_x + 0.5 * dt * vel_x
+        particle.pos_y = pos_y + 0.5 * dt * vel_y
+
+        particle.pos_x %= period[0]
+        particle.pos_y %= period[1]
+
+def simulate_sedov_taylor(particles, root, radius, kernel_func, period, dt, gamma=7, num_steps=1000):
+    # Set one particle with high energy
+    particles[0].energy = 1000
+    for _ in range(num_steps):
+        leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma)
 
