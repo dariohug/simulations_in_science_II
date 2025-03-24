@@ -270,7 +270,7 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
 
                 mu_ij = (radius * np.dot(vel_ij, r_ij)) / (np.linalg.norm(r_ij) + 1e-9**2)
                 
-                pi_ij = -0.5 * mu_ij * np.sqrt(gamma * pressure_i) + 1 * mu_ij**2 if np.dot(vel_ij, r_ij) < 0 else 0
+                pi_ij = -0.5 * mu_ij * np.sqrt(gamma * (gamma - 1) * particle.energy) + 1 * mu_ij**2 if np.dot(vel_ij, r_ij) < 0 else 0
 
                 force_x = -neighbor.mass * (pressure_term + pi_ij) * kernel_val * (distance[0] / distance_norm)
 
@@ -304,11 +304,3 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
         # Periodic boundary handling
         particle.pos_x = (particle.pos_x + period[0]) % period[0]
         particle.pos_y = (particle.pos_y + period[1]) % period[1]
-
-
-def simulate_sedov_taylor(particles, root, radius, kernel_func, period, dt, gamma=7, num_steps=1000):
-    # Set one particle with high energy
-    particles[0].energy = 1000
-    for _ in range(num_steps):
-        leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma)
-
