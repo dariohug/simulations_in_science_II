@@ -220,7 +220,7 @@ def calculate_density(particles, root, radius, kernel_func, period):
         particle.dens = density
 
 
-"""         ---               week 04                   ---     """
+"""         ---               week 04/05                 ---     """
 
 def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
     # Drift 1 (dt/2)
@@ -229,9 +229,19 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
         particle.pos_x += 0.5 * dt * vel_x
         particle.pos_y += 0.5 * dt * vel_y
 
-        # Periodic boundary handling
-        particle.pos_x = (particle.pos_x + period[0]) % period[0]
-        particle.pos_y = (particle.pos_y + period[1]) % period[1]
+        if particle.pos_x < 0:
+            particle.pos_x = -particle.pos_x
+            particle.vel_x = -0.8 * particle.vel_x
+        elif particle.pos_x > period[0]:
+            particle.pos_x = 2 * period[0] - particle.pos_x
+            particle.vel_x = -0.8 * particle.vel_x
+
+        if particle.pos_y < 0:
+            particle.pos_y = -particle.pos_y
+            particle.vel_y = -0.8 * particle.vel_y
+        elif particle.pos_y > period[1]:
+            particle.pos_y = 2 * period[1] - particle.pos_y
+            particle.vel_y = -0.8 * particle.vel_y
 
     # Predictions
     for particle in particles:
@@ -252,6 +262,8 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
         # Calculate Acceleration
         acc_x, acc_y = 0.0, 0.0
         du_dt = 0.0
+
+        bla = 7
 
         for _, neighbor, distance in pq.heap:
             if neighbor and particle.dens > 1e-5 and neighbor.dens > 1e-5:
@@ -282,6 +294,8 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
                 du_dt += 0.5 * neighbor.mass * pi_ij * np.dot(vel_ij, r_ij) * kernel_val / particle.dens
         
         particle.set_acc(acc_x, acc_y)
+        
+        # Enegry Prediction
         particle.pred_energy = particle.energy + du_dt * 0.5 * dt
 
         # Velocity Prediction
@@ -301,6 +315,16 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
         particle.pos_x = pos_x + 0.5 * dt * vel_x
         particle.pos_y = pos_y + 0.5 * dt * vel_y
 
-        # Periodic boundary handling
-        particle.pos_x = (particle.pos_x + period[0]) % period[0]
-        particle.pos_y = (particle.pos_y + period[1]) % period[1]
+        if particle.pos_x < 0:
+            particle.pos_x = -particle.pos_x
+            particle.vel_x = -0.8 * particle.vel_x
+        elif particle.pos_x > period[0]:
+            particle.pos_x = 2 * period[0] - particle.pos_x
+            particle.vel_x = -0.8 * particle.vel_x
+
+        if particle.pos_y < 0:
+            particle.pos_y = -particle.pos_y
+            particle.vel_y = -0.8 * particle.vel_y
+        elif particle.pos_y > period[1]:
+            particle.pos_y = 2 * period[1] - particle.pos_y
+            particle.vel_y = -0.8 * particle.vel_y
