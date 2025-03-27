@@ -10,6 +10,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from heapq import *
 
 
 class Particle:
@@ -257,7 +258,6 @@ def leapfrog_update(particles, root, radius, kernel_func, period, dt, gamma=7):
                 density += neighbor.mass * max(kernel_val, 1e-5)  # Regularization
 
         particle.set_dens(density)
-
         
         # Calculate Acceleration
         acc_x, acc_y = 0.0, 6.0

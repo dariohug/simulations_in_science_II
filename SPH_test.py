@@ -1,5 +1,5 @@
 import numpy as np
-from utils import Particle, Cell 
+from SPH_utils import Particle, Cell 
 
 # Used ChatGPT to helop me generate testcases for scenarious which I specified
 
